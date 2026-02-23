@@ -1,9 +1,12 @@
 name: tempdir
-version: 1.0.0
+version: 0.3.0
 
 authors:
-  - Hajime Yoshimori <lugia.kun@gmail.com>
+  - kritoke <3081486+kritoke@users.noreply.github.com>
 
-crystal: 1.0.0
+crystal: 1.11.0
 
 license: MIT
+
+description: |
+  Creates a temporary directory with atomic mkdtemp/mkstemp support.

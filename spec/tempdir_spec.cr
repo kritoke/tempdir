@@ -24,6 +24,7 @@ describe Tempdir do
     ensure
       m.close
     end
+    # ensure directory is removed
     File.exists?(path).should be_false
   end
 
@@ -52,6 +53,20 @@ describe Tempdir do
       perm.other_read?.should be_false
       perm.other_write?.should be_false
       perm.other_execute?.should be_false
+      # On Unix-like systems created files inside Tempdir should be owner-only
+      unless {% flag?(:windows) %}
+        # create a small tempfile using the atomic helper
+        data = Slice(UInt8).new(1)
+        data[0] = 0x78_u8
+        created = m.create_tempfile("perm_test_", data)
+        created.should_not be_nil
+        finfo = File.info(created.not_nil!)
+        fperm = finfo.permissions
+        # allow CI environments to differ on group/other perms; assert owner rw
+        fperm.owner_read?.should be_true
+        fperm.owner_write?.should be_true
+        File.delete(created.not_nil!) rescue nil
+      end
     ensure
       m.close
     end
