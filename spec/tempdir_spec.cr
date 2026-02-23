@@ -34,8 +34,8 @@ describe Tempdir do
       dir = File.join(m.path, "foo")
       Dir.mkdir(dir)
       File.chmod(dir, 0o777)
-      expect_raises(ArgumentError) do
-        m = Tempdir.new(dir: dir)
+      expect_raises(Tempdir::PermissionError) do
+        Tempdir.new(dir: dir)
       end
     ensure
       m.close
@@ -121,8 +121,56 @@ describe Tempdir do
       m.close
     end
   end
+
+  it "create_tempfile returns nil on failure by default" do
+    m = Tempdir.new
+    begin
+      m.close
+      created = m.create_tempfile("test_")
+      created.should be_nil
+    end
+  end
+
+  it "create_tempfile raises TempfileError when raise_on_failure is true" do
+    m = Tempdir.new
+    begin
+      m.close
+      expect_raises(Tempdir::TempfileError) do
+        m.create_tempfile("test_", raise_on_failure: true)
+      end
+    end
+  end
 end
 
+describe "Tempdir exceptions" do
+  it "PermissionError includes reason" do
+    m = Tempdir.new
+    begin
+      dir = File.join(m.path, "foo")
+      Dir.mkdir(dir)
+      File.chmod(dir, 0o777)
+      begin
+        Tempdir.new(dir: dir)
+      rescue ex : Tempdir::PermissionError
+        ex.message.not_nil!.should contain("parent directory is other writable but not sticky")
+      end
+    ensure
+      m.close
+    end
+  end
+
+  it "TempfileError includes prefix" do
+    m = Tempdir.new
+    begin
+      m.close
+      begin
+        m.create_tempfile("myprefix_", raise_on_failure: true)
+      rescue ex : Tempdir::TempfileError
+        ex.message.not_nil!.should contain("myprefix_")
+      end
+    end
+  end
+end
 
 describe "Dir.mktmpdir" do
   it "removed after block left" do
