@@ -268,4 +268,9 @@ class Dir
       dir
     end
   end
+
+  # Overload for no-block usage
+  def self.mktmpdir(**args)
+    Tempdir.new(**args)
+  end
 end

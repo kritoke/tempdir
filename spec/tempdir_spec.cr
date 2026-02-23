@@ -71,6 +71,56 @@ describe Tempdir do
       m.close
     end
   end
+
+  it "create_tempfile without data" do
+    m = Tempdir.new
+    begin
+      created = m.create_tempfile("nodata_")
+      created.should_not be_nil
+      File.exists?(created.not_nil!).should be_true
+      File.delete(created.not_nil!) rescue nil
+    ensure
+      m.close
+    end
+  end
+
+  it "create_tempfile preserves binary data" do
+    m = Tempdir.new
+    begin
+      arr = [0_u8, 1_u8, 127_u8, 128_u8, 200_u8, 255_u8]
+      data = Slice(UInt8).new(arr.size)
+      arr.each_with_index { |b, i| data[i] = b }
+      created = m.create_tempfile("binary_", data)
+      created.should_not be_nil
+      content = File.read(created.not_nil!)
+      content.bytes.should eq(arr)
+      File.delete(created.not_nil!) rescue nil
+    ensure
+      m.close
+    end
+  end
+
+  it "create_tempfile handles long prefix" do
+    m = Tempdir.new
+    begin
+      long_prefix = "x" * 200
+      created = m.create_tempfile(long_prefix, Slice(UInt8).new(0))
+      created.should_not be_nil
+      File.delete(created.not_nil!) rescue nil
+    ensure
+      m.close
+    end
+  end
+
+  it "path is accessible" do
+    m = Tempdir.new
+    begin
+      m.path.should_not be_empty
+      File.directory?(m.path).should be_true
+    ensure
+      m.close
+    end
+  end
 end
 
 
@@ -97,6 +147,14 @@ describe "Dir.mktmpdir" do
     rescue
     end
     path.empty?.should be_false
+    File.exists?(path).should be_false
+  end
+
+  it "returns Tempdir instance without block" do
+    dir = Dir.mktmpdir
+    dir.should be_a(Tempdir)
+    path = dir.path
+    dir.close
     File.exists?(path).should be_false
   end
 end
