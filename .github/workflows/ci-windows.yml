@@ -16,7 +16,8 @@ jobs:
       - name: Setup Crystal
         uses: crystal-lang/install-crystal@v1
         with:
-          crystal: 1.19.1
+          # Support older projects: prefer 1.18.2 but allow override in CI
+          crystal: 1.18.2
 
       - name: Install shards
         run: shards install
