@@ -2,6 +2,14 @@
 
 Creates a temporary directory with atomic mkdtemp/mkstemp support.
 
+## Features
+
+- **Atomic creation**: Uses `mkdtemp` on Unix and `CreateFileA` on Windows for race-free temp directory/file creation
+- **Secure permissions**: Directories created with `0o700`, files with `0o600` (owner-only)
+- **Cross-platform**: Works on Unix/Linux/macOS and Windows
+- **Convenience methods**: `create_tempfile` for atomic tempfile creation inside temp directories
+- **Automatic cleanup**: Tempdir removes contents on `#close`, block form auto-cleans
+
 ## Installation
 
 1. Add the dependency to your `shard.yml`:
