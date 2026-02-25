@@ -28,53 +28,49 @@ describe Tempdir do
     ensure
       m.close
     end
-    # ensure directory is removed
     File.exists?(path).should be_false
   end
 
-  it "raises if other writable and not sticky directory is used for base" do
-    m = Tempdir.new
-    begin
-      dir = File.join(m.path, "foo")
-      Dir.mkdir(dir)
-      File.chmod(dir, 0o777)
-      expect_raises(Tempdir::PermissionError) do
-        Tempdir.new(dir: dir)
+  {% if !flag?(:windows) %}
+    it "raises if other writable and not sticky directory is used for base" do
+      m = Tempdir.new
+      begin
+        dir = File.join(m.path, "foo")
+        Dir.mkdir(dir)
+        File.chmod(dir, 0o777)
+        expect_raises(Tempdir::PermissionError) do
+          Tempdir.new(dir: dir)
+        end
+      ensure
+        m.close
       end
-    ensure
-      m.close
     end
-  end
 
-  it "creates 'go-rwx' directory" do
-    m = Tempdir.new
-    begin
-      info = File.info(m.path)
-      perm = info.permissions
-      perm.group_read?.should be_false
-      perm.group_write?.should be_false
-      perm.group_execute?.should be_false
-      perm.other_read?.should be_false
-      perm.other_write?.should be_false
-      perm.other_execute?.should be_false
-      # On Unix-like systems created files inside Tempdir should be owner-only
-      unless {% flag?(:windows) %}
-        # create a small tempfile using the atomic helper
+    it "creates 'go-rwx' directory" do
+      m = Tempdir.new
+      begin
+        info = File.info(m.path)
+        perm = info.permissions
+        perm.group_read?.should be_false
+        perm.group_write?.should be_false
+        perm.group_execute?.should be_false
+        perm.other_read?.should be_false
+        perm.other_write?.should be_false
+        perm.other_execute?.should be_false
         data = Slice(UInt8).new(1)
         data[0] = 0x78_u8
         created = m.create_tempfile("perm_test_", data)
         created.should_not be_nil
         finfo = File.info(created.not_nil!)
         fperm = finfo.permissions
-        # allow CI environments to differ on group/other perms; assert owner rw
         fperm.owner_read?.should be_true
         fperm.owner_write?.should be_true
         File.delete(created.not_nil!) rescue nil
+      ensure
+        m.close
       end
-    ensure
-      m.close
     end
-  end
+  {% end %}
 
   it "create_tempfile without data" do
     m = Tempdir.new
@@ -128,20 +124,16 @@ describe Tempdir do
 
   it "create_tempfile returns nil on failure by default" do
     m = Tempdir.new
-    begin
-      m.close
-      created = m.create_tempfile("test_")
-      created.should be_nil
-    end
+    m.close
+    created = m.create_tempfile("test_")
+    created.should be_nil
   end
 
   it "create_tempfile raises TempfileError when raise_on_failure is true" do
     m = Tempdir.new
-    begin
-      m.close
-      expect_raises(Tempdir::TempfileError) do
-        m.create_tempfile("test_", raise_on_failure: true)
-      end
+    m.close
+    expect_raises(Tempdir::TempfileError) do
+      m.create_tempfile("test_", raise_on_failure: true)
     end
   end
 
@@ -151,8 +143,10 @@ describe Tempdir do
       paths = [] of String
       10.times do
         created = m.create_tempfile("concurrent_")
-        paths << created.not_nil!
+        next unless created
+        paths << created
       end
+      paths.size.should eq(10)
       paths.uniq.size.should eq(10)
       paths.each do |p|
         File.exists?(p).should be_true
@@ -174,31 +168,31 @@ describe Tempdir do
 end
 
 describe "Tempdir exceptions" do
-  it "PermissionError includes reason" do
-    m = Tempdir.new
-    begin
-      dir = File.join(m.path, "foo")
-      Dir.mkdir(dir)
-      File.chmod(dir, 0o777)
+  {% if !flag?(:windows) %}
+    it "PermissionError includes reason" do
+      m = Tempdir.new
       begin
-        Tempdir.new(dir: dir)
-      rescue ex : Tempdir::PermissionError
-        ex.message.not_nil!.should contain("parent directory is other writable but not sticky")
+        dir = File.join(m.path, "foo")
+        Dir.mkdir(dir)
+        File.chmod(dir, 0o777)
+        begin
+          Tempdir.new(dir: dir)
+        rescue ex : Tempdir::PermissionError
+          ex.message.not_nil!.should contain("parent directory is other writable but not sticky")
+        end
+      ensure
+        m.close
       end
-    ensure
-      m.close
     end
-  end
+  {% end %}
 
   it "TempfileError includes prefix" do
     m = Tempdir.new
+    m.close
     begin
-      m.close
-      begin
-        m.create_tempfile("myprefix_", raise_on_failure: true)
-      rescue ex : Tempdir::TempfileError
-        ex.message.not_nil!.should contain("myprefix_")
-      end
+      m.create_tempfile("myprefix_", raise_on_failure: true)
+    rescue ex : Tempdir::TempfileError
+      ex.message.not_nil!.should contain("myprefix_")
     end
   end
 

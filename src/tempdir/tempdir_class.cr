@@ -128,14 +128,17 @@ class Tempdir < Dir
 
       while tries < 16 && !opened
         begin
-          File.open(path, "wx") do |f|
+          if File.exists?(path)
+            raise File::AlreadyExistsError.new(path, file: path)
+          end
+          File.open(path, "w") do |f|
             if data
               f.write(data)
               f.flush
             end
           end
           opened = true
-        rescue ex : File::AlreadyExistsError
+        rescue File::AlreadyExistsError
           path = "#{path}_#{Random.new.rand(0_u32..0xFFFF_FFFF_u32)}"
         end
         tries += 1
@@ -150,11 +153,13 @@ class Tempdir < Dir
       return handle_failure(prefix, raise_on_failure, TempfileError.new(prefix, ex))
     end
 
-    begin
-      File.chmod(result_path, 0o600)
-    rescue ex : Exception
-      STDERR.puts "Tempdir#create_tempfile: chmod failed: #{ex.message}" if ENV["PRISMATIQ_DEBUG"]?
-    end
+    {% if !flag?(:windows) %}
+      begin
+        File.chmod(result_path, 0o600)
+      rescue ex : Exception
+        STDERR.puts "Tempdir#create_tempfile: chmod failed: #{ex.message}" if ENV["PRISMATIQ_DEBUG"]?
+      end
+    {% end %}
 
     result_path
   end
