@@ -35,32 +35,11 @@ class Tempdir < Dir
     parent_path = File.dirname(File.tempname(**args))
     validate_parent_directory(parent_path)
 
-    path = nil
-    fallback_created = false
-    fallback_path = ""
-
-    if MKDTEMP_AVAILABLE
-      begin
-        base = File.tempname(**args)
-        tmpl = "#{base}XXXXXX"
-        buf = Bytes.new(tmpl.size + 1)
-        copy_slice_to_buf(tmpl.to_slice, buf)
-
-        result = TempdirLib::LibC.mkdtemp(buf.to_unsafe)
-        if result != Pointer(UInt8).null
-          path = buf_to_string(buf)
-        end
-      rescue ex : Exception
-        STDERR.puts "Tempdir#initialize: mkdtemp failed: #{ex.message}" if ENV["PRISMATIQ_DEBUG"]?
-        path = nil
-      end
-    end
-
+    path = try_mkdtemp(**args)
     unless path
       fallback_path = File.tempname(**args)
       begin
         Dir.mkdir(fallback_path, 0o700)
-        fallback_created = true
         path = fallback_path
       rescue ex : Exception
         raise CreationError.new(fallback_path, ex)
@@ -70,11 +49,31 @@ class Tempdir < Dir
     begin
       super(path)
     rescue ex : Exception
-      if fallback_created
-        FileUtils.rm_rf(fallback_path) rescue nil
-      end
+      FileUtils.rm_rf(path) rescue nil
       raise CreationError.new(path, ex)
     end
+  end
+
+  private def try_mkdtemp(**args) : String?
+    {% if flag?(:windows) %}
+      return nil
+    {% else %}
+      return nil unless MKDTEMP_AVAILABLE
+      begin
+        base = File.tempname(**args)
+        tmpl = "#{base}XXXXXX"
+        buf = Bytes.new(tmpl.size + 1)
+        copy_slice_to_buf(tmpl.to_slice, buf)
+
+        result = TempdirLib::LibC.mkdtemp(buf.to_unsafe)
+        if result != Pointer(UInt8).null
+          return buf_to_string(buf)
+        end
+      rescue ex : Exception
+        STDERR.puts "Tempdir#initialize: mkdtemp failed: #{ex.message}" if ENV["PRISMATIQ_DEBUG"]?
+      end
+      nil
+    {% end %}
   end
 
   def create_tempfile(prefix : String, data : Slice(UInt8)? = nil, raise_on_failure : Bool = false) : String?
@@ -83,10 +82,18 @@ class Tempdir < Dir
     buf = Bytes.new(tmpl.to_slice.size + 1)
     copy_slice_to_buf(tmpl.to_slice, buf)
 
-    fd = -1
-    result_path : String? = nil
+    result = try_mkstemp(buf, prefix, data, raise_on_failure)
+    return result if result
 
-    if MKDTEMP_AVAILABLE
+    fallback_create_tempfile(buf, prefix, data, raise_on_failure)
+  end
+
+  private def try_mkstemp(buf : Bytes, prefix : String, data : Slice(UInt8)?, raise_on_failure : Bool) : String?
+    {% if flag?(:windows) %}
+      return nil
+    {% else %}
+      return nil unless MKDTEMP_AVAILABLE
+
       fd = TempdirLib::LibC.mkstemp(buf.to_unsafe)
       if fd < 0
         return handle_failure(prefix, raise_on_failure, TempfileError.new(prefix))
@@ -109,36 +116,38 @@ class Tempdir < Dir
       end
 
       TempdirLib::LibC.close(fd)
-      result_path = buf_to_string(buf)
-    else
-      begin
-        path = buf_to_string(buf)
-        tries = 0
-        opened = false
+      buf_to_string(buf)
+    {% end %}
+  end
 
-        while tries < 16 && !opened
-          begin
-            File.open(path, "wx") do |f|
-              if data
-                f.write(data)
-                f.flush
-              end
+  private def fallback_create_tempfile(buf : Bytes, prefix : String, data : Slice(UInt8)?, raise_on_failure : Bool) : String?
+    begin
+      path = buf_to_string(buf)
+      tries = 0
+      opened = false
+
+      while tries < 16 && !opened
+        begin
+          File.open(path, "wx") do |f|
+            if data
+              f.write(data)
+              f.flush
             end
-            opened = true
-          rescue ex : File::AlreadyExistsError
-            path = "#{path}_#{Random.new.rand(0_u32..0xFFFF_FFFF_u32)}"
           end
-          tries += 1
+          opened = true
+        rescue ex : File::AlreadyExistsError
+          path = "#{path}_#{Random.new.rand(0_u32..0xFFFF_FFFF_u32)}"
         end
-
-        unless opened
-          return handle_failure(prefix, raise_on_failure, TempfileError.new(prefix))
-        end
-        result_path = path
-      rescue ex : Exception
-        STDERR.puts "Tempdir#create_tempfile fallback failed: #{ex.message}" if ENV["PRISMATIQ_DEBUG"]?
-        return handle_failure(prefix, raise_on_failure, TempfileError.new(prefix, ex))
+        tries += 1
       end
+
+      unless opened
+        return handle_failure(prefix, raise_on_failure, TempfileError.new(prefix))
+      end
+      result_path = path
+    rescue ex : Exception
+      STDERR.puts "Tempdir#create_tempfile fallback failed: #{ex.message}" if ENV["PRISMATIQ_DEBUG"]?
+      return handle_failure(prefix, raise_on_failure, TempfileError.new(prefix, ex))
     end
 
     begin
@@ -161,12 +170,6 @@ class Tempdir < Dir
   private def cleanup_tempfile(buf : Bytes)
     path = buf_to_string(buf)
     File.delete(path) rescue nil
-  end
-
-  private def cleanup_created_paths(paths : Array(String))
-    paths.each do |p|
-      File.delete(p) rescue nil
-    end
   end
 
   def close
