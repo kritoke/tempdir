@@ -25,7 +25,7 @@
           Dir.mkdir(temp_name)
           return temp_name
         rescue File::AlreadyExistsError
-        rescue File::PermissionError
+        rescue ex : Exception
           return nil
         end
         tries += 1
