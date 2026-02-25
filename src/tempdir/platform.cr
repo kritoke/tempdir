@@ -32,21 +32,14 @@
     EXTENDED_PATH_LENGTH = 32767
 
     def self.to_widechar(str : String) : Slice(UInt16)
-      bytes = Slice(UInt16).new(str.size + 1, 0_u16)
-      str.each_char_with_index do |char, i|
-        bytes[i] = char.ord.to_u16
-      end
-      bytes
+      utf16 = str.to_utf16
+      result = Slice(UInt16).new(utf16.size + 1, 0_u16)
+      utf16.copy_to(result.to_unsafe, utf16.size)
+      result
     end
 
     def self.from_widechar(slice : Slice(UInt16)) : String
-      String.build do |s|
-        i = 0
-        while slice[i] != 0
-          s << slice[i].chr
-          i += 1
-        end
-      end
+      String.from_utf16(slice)
     end
 
     def self.get_temp_path : String

@@ -3,7 +3,7 @@ require "./platform"
 require "./exceptions"
 
 class Tempdir < Dir
-  VERSION = "0.1.0"
+  VERSION = "1.1.1"
 
   @closed : Bool = false
 
@@ -18,6 +18,7 @@ class Tempdir < Dir
   end
 
   private def copy_slice_to_buf(src : Slice(UInt8), buf : Bytes)
+    raise ArgumentError.new("Buffer too small") if buf.size <= src.size
     src.copy_to(buf.to_unsafe, src.size)
     buf[src.size] = 0_u8
   end
@@ -40,9 +41,12 @@ class Tempdir < Dir
       base_dir = args[:dir]? || TempdirWindows.get_temp_path
       prefix = args[:prefix]? || "tmp"
 
-      fallback_path = TempdirWindows.create_temp_directory(base_dir.to_s, prefix.to_s)
+      temp_dir_result = TempdirWindows.create_temp_directory(base_dir.to_s, prefix.to_s)
 
-      unless fallback_path
+      if temp_dir_result
+        fallback_path = temp_dir_result
+        fallback_created = true
+      else
         fallback_path = File.join(base_dir.to_s, "#{prefix}_#{Random.new.rand(0_u32..0xFFFF_FFFF_u32)}")
         begin
           Dir.mkdir(fallback_path)
@@ -115,21 +119,19 @@ class Tempdir < Dir
         created = false
 
         while tries < 16 && !created
-          if !File.exists?(result_path)
-            begin
-              File.open(result_path, "w") do |f|
-                if data
-                  f.write(data)
-                  f.flush
-                end
+          begin
+            File.open(result_path, "wx") do |f|
+              if data
+                f.write(data)
+                f.flush
               end
-              created = true
-            rescue ex : Exception
-              STDERR.puts "Tempdir#create_tempfile windows fallback failed: #{ex.message}" if ENV["PRISMATIQ_DEBUG"]?
-              return handle_failure(prefix, raise_on_failure, TempfileError.new(prefix, ex))
             end
-          else
+            created = true
+          rescue ex : File::AlreadyExistsError
             result_path = File.join(self.path, "#{safe_prefix}_#{Random.new.rand(0_u32..0xFFFF_FFFF_u32)}")
+          rescue ex : Exception
+            STDERR.puts "Tempdir#create_tempfile windows fallback failed: #{ex.message}" if ENV["PRISMATIQ_DEBUG"]?
+            return handle_failure(prefix, raise_on_failure, TempfileError.new(prefix, ex))
           end
           tries += 1
         end
@@ -195,15 +197,15 @@ class Tempdir < Dir
         opened = false
 
         while tries < 16 && !opened
-          if !File.exists?(path)
-            File.open(path, "w") do |f|
+          begin
+            File.open(path, "wx") do |f|
               if data
                 f.write(data)
                 f.flush
               end
             end
             opened = true
-          else
+          rescue ex : File::AlreadyExistsError
             path = "#{path}_#{Random.new.rand(0_u32..0xFFFF_FFFF_u32)}"
           end
           tries += 1

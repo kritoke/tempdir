@@ -1,6 +1,10 @@
 require "./spec_helper"
 
 describe Tempdir do
+  it "VERSION matches shard.yml" do
+    Tempdir::VERSION.should eq("1.1.1")
+  end
+
   it "creates an empty directory" do
     m = Tempdir.new
     begin
@@ -140,6 +144,33 @@ describe Tempdir do
       end
     end
   end
+
+  it "create_tempfile is atomic and handles concurrent creation" do
+    m = Tempdir.new
+    begin
+      paths = [] of String
+      10.times do
+        created = m.create_tempfile("concurrent_")
+        paths << created.not_nil!
+      end
+      paths.uniq.size.should eq(10)
+      paths.each do |p|
+        File.exists?(p).should be_true
+        File.delete(p) rescue nil
+      end
+    ensure
+      m.close
+    end
+  end
+
+  it "close is idempotent and safe to call multiple times" do
+    m = Tempdir.new
+    path = m.path
+    m.close
+    m.close
+    m.close
+    File.exists?(path).should be_false
+  end
 end
 
 describe "Tempdir exceptions" do
@@ -169,6 +200,13 @@ describe "Tempdir exceptions" do
         ex.message.not_nil!.should contain("myprefix_")
       end
     end
+  end
+
+  it "Tempdir::Error is base class for all tempdir errors" do
+    Tempdir::CreationError.new("/tmp/test").should be_a(Tempdir::Error)
+    Tempdir::PermissionError.new("/tmp/test", "test").should be_a(Tempdir::Error)
+    Tempdir::TempfileError.new("prefix").should be_a(Tempdir::Error)
+    Tempdir::WriteError.new("/tmp/test").should be_a(Tempdir::Error)
   end
 end
 
