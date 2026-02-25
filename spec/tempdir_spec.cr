@@ -2,7 +2,7 @@ require "./spec_helper"
 
 describe Tempdir do
   it "VERSION matches shard.yml" do
-    Tempdir::VERSION.should eq("1.1.1")
+    Tempdir::VERSION.should eq("1.1.2")
   end
 
   it "creates an empty directory" do
