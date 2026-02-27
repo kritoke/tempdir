@@ -23,13 +23,13 @@ module FunctionalTempdir
       begin
         path = @tempdir.create_tempfile(prefix, data, raise_on_failure)
         if path
-          TempdirResult::Result.ok(path)
+          TempdirResult::Result(String, ::Tempdir::Error).ok(path)
         else
           # When nil is returned and raise_on_failure is false, produce a TempfileError
-          TempdirResult::Result.err(::Tempdir::TempfileError.new(prefix))
+          TempdirResult::Result(String, ::Tempdir::Error).err(::Tempdir::TempfileError.new(prefix))
         end
       rescue ex : ::Tempdir::Error
-        TempdirResult::Result.err(ex)
+        TempdirResult::Result(String, ::Tempdir::Error).err(ex)
       end
     end
 
@@ -43,8 +43,15 @@ module FunctionalTempdir
   def self.create(**args) : Info
     # Prefer creation via the underlying class but return an immutable-like
     # Info wrapper so callers hold an explicit resource handle.
-    t = ::Tempdir.new(**args)
-    Info.new(t)
+    begin
+      t = ::Tempdir.new(**args)
+      Info.new(t)
+    rescue ex : ::Tempdir::Error
+      # Wrap creation failures in a Result-like error to allow callers to
+      # handle failures functionally if desired. For now, re-raise to keep
+      # backward compatible behavior.
+      raise
+    end
   end
 
   # Convenience that yields the path and guarantees cleanup
