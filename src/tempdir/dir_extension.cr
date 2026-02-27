@@ -15,6 +15,7 @@ class Dir
     if !res.success?
       raise res.error!
     end
-    res.value!
+    # Return the original Tempdir instance for full backward compatibility
+    res.value!.tempdir
   end
 end
