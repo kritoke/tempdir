@@ -47,6 +47,59 @@ Dir.mktmpdir do |dir|
 end
 ```
 
+Functional API
+----------------
+
+This library now exposes a small functional-style API via `FunctionalTempdir`.
+It keeps resource management explicit and returns Result values for fallible
+operations.
+
+Block-style (guaranteed cleanup):
+
+```crystal
+FunctionalTempdir.with_tempdir do |path|
+  # use path (directory is removed after the block)
+end
+```
+
+Non-block creation (explicit handle, success wrapped in a Result):
+
+```crystal
+res = FunctionalTempdir.create
+if res.success?
+  info = res.value!
+  # info.path is the directory path
+  info.close
+else
+  STDERR.puts res.error!.message
+end
+```
+
+create_tempfile now returns a `TempdirResult::Result(String, Tempdir::Error)`:
+
+```crystal
+res = FunctionalTempdir.create
+info = res.value!
+file_res = info.create_tempfile("myprefix_")
+if file_res.success?
+  path = file_res.value!
+  # use the file
+else
+  STDERR.puts file_res.error!.message
+end
+info.close
+```
+
+Migration note
+---------------
+
+Existing code that used `Tempdir.new` or `Dir.mktmpdir` can keep working.
+`Dir.mktmpdir` still supports the block form and the non-block form now
+returns a value-like `FunctionalTempdir::Info` (the non-block `Dir.mktmpdir` will
+raise on creation failure). If you prefer non-raising, switch to
+`FunctionalTempdir.create` which returns an explicit `Result` you can handle.
+
+
 ### Tempdir
 
 The temporary directory class based on `Dir`.
