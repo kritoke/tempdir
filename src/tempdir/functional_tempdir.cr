@@ -18,8 +18,19 @@ module FunctionalTempdir
     end
 
     # Delegate create_tempfile to the underlying Tempdir instance
-    def create_tempfile(prefix : String, data : Slice(UInt8)? = nil, raise_on_failure : Bool = false) : String?
-      @tempdir.create_tempfile(prefix, data, raise_on_failure)
+    # New API: return a TempdirResult::Result(String, Tempdir::Error)
+    def create_tempfile(prefix : String, data : Slice(UInt8)? = nil, raise_on_failure : Bool = false) : TempdirResult::Result(String, ::Tempdir::Error)
+      begin
+        path = @tempdir.create_tempfile(prefix, data, raise_on_failure)
+        if path
+          TempdirResult::Result.ok(path)
+        else
+          # When nil is returned and raise_on_failure is false, produce a TempfileError
+          TempdirResult::Result.err(::Tempdir::TempfileError.new(prefix))
+        end
+      rescue ex : ::Tempdir::Error
+        TempdirResult::Result.err(ex)
+      end
     end
 
     # Close (remove) the underlying tempdir; idempotent via Tempdir#close
@@ -30,6 +41,8 @@ module FunctionalTempdir
 
   # Create a Tempdir and return an Info wrapper
   def self.create(**args) : Info
+    # Prefer creation via the underlying class but return an immutable-like
+    # Info wrapper so callers hold an explicit resource handle.
     t = ::Tempdir.new(**args)
     Info.new(t)
   end
