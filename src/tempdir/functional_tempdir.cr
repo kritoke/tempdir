@@ -7,10 +7,14 @@ module FunctionalTempdir
   # and create_tempfile. This keeps side effects in one place while
   # presenting a simpler functional usage pattern.
   struct Info
-    # Expose the filesystem path as the primary piece of data
-    getter path : String
+    # Keep the underlying Tempdir instance; expose path via method
+    getter tempdir : ::Tempdir
 
     def initialize(@tempdir : ::Tempdir)
+    end
+
+    def path : String
+      @tempdir.path
     end
 
     # Delegate create_tempfile to the underlying Tempdir instance
