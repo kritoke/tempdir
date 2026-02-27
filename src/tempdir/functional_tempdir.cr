@@ -39,18 +39,13 @@ module FunctionalTempdir
     end
   end
 
-  # Create a Tempdir and return an Info wrapper
-  def self.create(**args) : Info
-    # Prefer creation via the underlying class but return an immutable-like
-    # Info wrapper so callers hold an explicit resource handle.
+  # Create a Tempdir and return a Result-wrapped Info to avoid raising on failure
+  def self.create(**args) : TempdirResult::Result(Info, ::Tempdir::Error)
     begin
       t = ::Tempdir.new(**args)
-      Info.new(t)
+      TempdirResult::Result(Info, ::Tempdir::Error).ok(Info.new(t))
     rescue ex : ::Tempdir::Error
-      # Wrap creation failures in a Result-like error to allow callers to
-      # handle failures functionally if desired. For now, re-raise to keep
-      # backward compatible behavior.
-      raise
+      TempdirResult::Result(Info, ::Tempdir::Error).err(ex)
     end
   end
 
