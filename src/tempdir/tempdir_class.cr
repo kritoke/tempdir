@@ -1,5 +1,5 @@
 require "file_utils"
-require "./platform"
+require "./ffi"
 require "./exceptions"
 
 class Tempdir < Dir
@@ -7,20 +7,13 @@ class Tempdir < Dir
 
   @closed : Bool = false
 
+  # Delegate low-level buffer helpers to TempdirFFI
   private def buf_to_string(buf : Bytes) : String
-    idx = 0
-    String.build do |s|
-      while buf[idx] != 0
-        s << buf[idx].chr
-        idx += 1
-      end
-    end
+    TempdirFFI.buf_to_string(buf)
   end
 
   private def copy_slice_to_buf(src : Slice(UInt8), buf : Bytes)
-    raise ArgumentError.new("Buffer too small") if buf.size <= src.size
-    src.copy_to(buf.to_unsafe, src.size)
-    buf[src.size] = 0_u8
+    TempdirFFI.copy_slice_to_buf(src, buf)
   end
 
   private def validate_parent_directory(parent_path : String)
@@ -58,7 +51,7 @@ class Tempdir < Dir
     {% if flag?(:windows) %}
       return nil
     {% else %}
-      return nil unless MKDTEMP_AVAILABLE
+    return nil unless MKDTEMP_AVAILABLE
       begin
         base = File.tempname(**args)
         tmpl = "#{base}XXXXXX"
@@ -108,7 +101,7 @@ class Tempdir < Dir
           w = TempdirLib::LibC.write(fd, ptr.as(Pointer(Void)), left)
           if w <= 0
             TempdirLib::LibC.close(fd)
-            cleanup_tempfile(buf)
+            TempdirFFI.cleanup_tempfile(buf)
             return handle_failure(prefix, raise_on_failure, WriteError.new(buf_to_string(buf)))
           end
           written += w.to_i
@@ -172,10 +165,9 @@ class Tempdir < Dir
     end
   end
 
-  private def cleanup_tempfile(buf : Bytes)
-    path = buf_to_string(buf)
-    File.delete(path) rescue nil
-  end
+    private def cleanup_tempfile(buf : Bytes)
+      TempdirFFI.cleanup_tempfile(buf)
+    end
 
   def close
     return if @closed
