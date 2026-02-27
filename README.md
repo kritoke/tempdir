@@ -28,7 +28,7 @@ Creates a temporary directory with atomic mkdtemp/mkstemp support.
 require "tempdir"
 ```
 
-### Dir.mktmpdir
+### Dir.mktmpdir (block form uses FunctionalTempdir)
 
 ```crystal
 dir = Dir.mktmpdir(*args)
@@ -39,7 +39,7 @@ See `File.tempname`.
 
 The returning object is `Tempdir`. It removes all entries when `#close`-d.
 
-With block, the created directory will be removed after block is left.
+With block, the created directory will be removed after block is left. The block form now uses a functional helper under the hood to guarantee cleanup.
 
 ```crystal
 Dir.mktmpdir do |dir|
