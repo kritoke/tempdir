@@ -51,7 +51,11 @@ module FunctionalTempdir
 
   # Convenience that yields the path and guarantees cleanup
   def self.with_tempdir(**args)
-    info = create(**args)
+    res = create(**args)
+    if !res.success?
+      raise res.error!
+    end
+    info = res.value!
     begin
       yield info.path
     ensure
