@@ -230,9 +230,9 @@ describe "Dir.mktmpdir" do
     File.exists?(path).should be_false
   end
 
-  it "returns FunctionalTempdir::Info instance without block" do
+  it "returns Tempdir instance without block" do
     dir = Dir.mktmpdir
-    dir.should be_a(FunctionalTempdir::Info)
+    dir.should be_a(Tempdir)
     path = dir.path
     dir.close
     File.exists?(path).should be_false
