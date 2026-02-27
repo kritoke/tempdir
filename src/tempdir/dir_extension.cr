@@ -11,6 +11,10 @@ class Dir
   def self.mktmpdir(**args)
     # Prefer the functional immutable wrapper for non-block usage so callers
     # get a value-like object and explicit cleanup via `close`.
-    FunctionalTempdir.create(**args)
+    res = FunctionalTempdir.create(**args)
+    if !res.success?
+      raise res.error!
+    end
+    res.value!
   end
 end
