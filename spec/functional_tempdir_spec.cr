@@ -27,11 +27,13 @@ describe FunctionalTempdir do
   end
 
   it "create_tempfile returns Result and creates file" do
-    info = FunctionalTempdir.create
+    res = FunctionalTempdir.create
+    res.success?.should be_true
+    info = res.value!
     begin
-      res = info.create_tempfile("nodata_")
-      res.success?.should be_true
-      path = res.value!
+      r = info.create_tempfile("nodata_")
+      r.success?.should be_true
+      path = r.value!
       File.exists?(path).should be_true
       File.delete(path) rescue nil
     ensure
