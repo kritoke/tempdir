@@ -9,6 +9,8 @@ class Dir
 
   # Non-block form remains compatible and returns a Tempdir instance
   def self.mktmpdir(**args)
-    Tempdir.new(**args)
+    # Prefer the functional immutable wrapper for non-block usage so callers
+    # get a value-like object and explicit cleanup via `close`.
+    FunctionalTempdir.create(**args)
   end
 end
