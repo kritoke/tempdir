@@ -2,8 +2,10 @@ require "./spec_helper"
 require "../src/tempdir/functional_tempdir"
 
 describe FunctionalTempdir do
-  it "create returns an Info with accessible path and can be removed" do
-    info = FunctionalTempdir.create
+  it "create returns a Result-wrapped Info with accessible path and can be removed" do
+    res = FunctionalTempdir.create
+    res.success?.should be_true
+    info = res.value!
     begin
       info.path.should_not be_empty
       File.directory?(info.path).should be_true
@@ -22,5 +24,18 @@ describe FunctionalTempdir do
     end
     path.empty?.should be_false
     File.exists?(path).should be_false
+  end
+
+  it "create_tempfile returns Result and creates file" do
+    info = FunctionalTempdir.create
+    begin
+      res = info.create_tempfile("nodata_")
+      res.success?.should be_true
+      path = res.value!
+      File.exists?(path).should be_true
+      File.delete(path) rescue nil
+    ensure
+      FunctionalTempdir.remove(info)
+    end
   end
 end
