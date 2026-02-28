@@ -1,13 +1,35 @@
-/docs/
-/lib/
-/bin/
-/.shards/
-*.dwarf
+# Nix
+.direnv/
+.flake/
+result
+result-*
 
-# Libraries don't need dependency lock
-# Dependencies will be locked in applications that use them
-/shard.lock
+# Dependencies
+node_modules/
+lib/
 
+# Build artifacts
+bin/
+*.beam
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Logs
+*.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+!.env.example
+# Local developer overrides
 flake.private.nix
-
-todo.md
+.devshell-private.sh
